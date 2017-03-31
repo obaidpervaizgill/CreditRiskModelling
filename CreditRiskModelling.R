@@ -23,7 +23,7 @@ colnames(credit)
 table(credit$default)
 
 #No missing values in the data
-#Note : I would have used "package" in R to impute missing values if there were any
+#Note : I would have used "mice" package in R to impute missing values if there were any
 
 #Normalizing or standardizing data
 #Note : I would have scaled the variables using standardization or minmax normalization, but I havent done this here! 
