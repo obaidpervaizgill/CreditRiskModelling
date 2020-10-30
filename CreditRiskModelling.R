@@ -5,7 +5,7 @@
 ##################################
 
 #loading data
-credit <- read.csv("credit.csv")
+credit <- read.csv("https://raw.githubusercontent.com/obaidpervaizgill/CreditRiskModelling/master/credit.csv")
 
 #identifying the structure of variables
 str(credit)
@@ -45,12 +45,12 @@ prop.table(table(test$default))
 ############################################
 
 #training a model
-creditLogReg <- glm(train$default ~ ., data = train[,c(-17,-18)], family = "binomial" ) #removing split feature and dependent variable
+creditLogReg <- glm(factor(train$default) ~ ., data = train, family = "binomial" ) #removing split feature and dependent variable
 summary(creditLogReg) #summary of the model output
 #Note: In theory I should rerun the model removing the non-significant features but since I want to demonstrate multiple model usage I would let it slide
 
-#predicing on test data
-predCreditLogReg <- predict(creditLogReg, newdata = test[,c(-17,-18)], type = "response") #this probability of creidt default for each observation
+#predicting on test data
+predCreditLogReg <- predict(creditLogReg, newdata = test, type = "response") #this probability of creidt default for each observation
 
 #obtaining a confusion matrix
 table(test$default, predCreditLogReg > 0.5) 
@@ -76,17 +76,13 @@ print(areaUnderCurve)
 #training a model using decision trees#
 #######################################
 library("rpart")
-library("rpart.plot")
 
 #training a model
-creditDecTree <- rpart(train$default ~ ., data = train[,c(-17,-18)], method = "class", minbucket = 1) #min bucket is minimum number of observations in a terminal nore
+creditDecTree <- rpart(train$default ~ ., data = train, method = "class", minbucket = 1) #min bucket is minimum number of observations in a terminal nore
 summary(creditDecTree) #summary of the model output
 
-#plotting a decision tree to see splits
-prp(creditDecTree)
-
 #predicting on test data
-predictCreditDecTree <- predict(creditDecTree, newdata = test[,c(-17,-18)], type = "class") #getting classes rather than probability
+predictCreditDecTree <- predict(creditDecTree, newdata = test, type = "class") #getting classes rather than probability
 
 #computing the accuracy of the model
 table(test$default,predictCreditDecTree) #since we dont have a probability here so we dont set a threshold
@@ -102,7 +98,7 @@ print(baseLineAccuracy)
 
 #assesing the robustness of model
 library(ROCR)
-rocrPredictCreditDecTree <- prediction((predict(creditDecTree, newdata = test[,c(-17,-18)])[,2]), test$default) #getting probability and then picking predicted class
+rocrPredictCreditDecTree <- prediction((predict(creditDecTree, newdata = test)[,2]), test$default) #getting probability and then picking predicted class
 areaUnderCurve <- as.numeric(performance(rocrPredictCreditDecTree, "auc")@y.values) #out of sample auc
 print(areaUnderCurve) 
 
@@ -117,12 +113,12 @@ tuneGridDecTree <- expand.grid(.cp=seq(0.01,0.5,0.01))
 fitControlDecTree <- trainControl(method = "cv", number = 10)
 
 
-tunedCreditDecTree <- train(train$default ~., data = train[,c(-17,-18)],
+tunedCreditDecTree <- train(default ~., data = train,
                             method = "rpart",
                             trControl = fitControlDecTree,
                             tuneGrid = tuneGridDecTree)
 
-tunedPredictCreditDecTree <- predict(tunedCreditDecTree, newdata=test[,c(-17,-18)], type="raw")
+tunedPredictCreditDecTree <- predict(tunedCreditDecTree, newdata=test, type="raw")
 
 #copmuting the accuracy of the model
 table(test$default,tunedPredictCreditDecTree) #since we dont have a probability here so we dont set a threshold
@@ -135,7 +131,7 @@ accuracyTunedCreditDecTree <- ((as.matrix(table(test$default, tunedPredictCredit
 library(randomForest)
 
 #training a model
-creditRandFor <- randomForest(as.factor(train$default) ~., data = train[,c(-17,-18)],nodesize =25, ntree = 200)
+creditRandFor <- randomForest(as.factor(train$default) ~., data = train,nodesize =25, ntree = 200)
 summary(creditRandFor) #summary of the model output
 
 #identifying the most important variables based on mean gini decrease
@@ -143,7 +139,7 @@ varImpPlot(creditRandFor)
 #Note : Show how each split result in low impurities or increased homogeneity
 
 #predicting on test data
-predictCreditRandFor <- predict(creditRandFor, newdata = test[,c(-17,-18)])
+predictCreditRandFor <- predict(creditRandFor, newdata = test)
 
 #computing the accuracy of the model
 table(test$default,predictCreditRandFor) #since we dont have a probability here so we dont set a threshold
@@ -159,7 +155,7 @@ print(baseLineAccuracy)
 
 #assesing the robustness of model
 library(ROCR)
-rocrPredictCreditRandFor <- prediction((predict(creditRandFor, newdata = test[,c(-17,-18)], type = "prob")[,2]), test$default) #getting probability and then picking predicted class
+rocrPredictCreditRandFor <- prediction((predict(creditRandFor, newdata = test, type = "prob")[,2]), test$default) #getting probability and then picking predicted class
 areaUnderCurve <- as.numeric(performance(rocrPredictCreditRandFor, "auc")@y.values) #out of sample auc
 print(areaUnderCurve)
 #Note : Very high area under the curve but slighltly less than logistic regression
@@ -171,16 +167,16 @@ print(areaUnderCurve)
 library(caret)
 
 #tuning for mtry, this the number of variables randomly sampled for splits
-tuneGridRandFor <- expand.grid(.mtry=c(1:sqrt(ncol(train[,c(-17,-18)]))))
+tuneGridRandFor <- expand.grid(.mtry=c(1:sqrt(ncol(train))))
 
 #creating a list of parameters to be passed onto the model
 fitControlRandFor <- trainControl(method = "repeatedcv", 
-                             number = 5, repeats = 3,
-                             #fivefold cross validation repeated 10 times
-                             classProbs = TRUE,
-                             summaryFunction = twoClassSummary) 
+                                  number = 5, repeats = 3,
+                                  #fivefold cross validation repeated 10 times
+                                  classProbs = TRUE,
+                                  summaryFunction = twoClassSummary) 
 
-tunedCreditRandFor <- train(as.factor(train$default) ~., data = train[,c(-17,-18)],
+tunedCreditRandFor <- train(default ~., data = train,
                             method = "rf",
                             trControl = fitControlRandFor,
                             verbose = TRUE,
@@ -188,11 +184,10 @@ tunedCreditRandFor <- train(as.factor(train$default) ~., data = train[,c(-17,-18
                             tuneGrid = data.frame(tuneGridRandFor),
                             importance = TRUE)
 
-tunedPredictCreditRandFor <- predict(tunedCreditRandFor, newdata = test[,c(-17,-18)])
+tunedPredictCreditRandFor <- predict(tunedCreditRandFor, newdata = test)
 
 #computing the accuracy of the model
 table(test$default,tunedPredictCreditRandFor) #since we dont have a probability here so we dont set a threshold
 
 accuracyTunedCreditRandFor <- ((as.matrix(table(test$default, tunedPredictCreditRandFor))[1,1]) + (as.matrix(table(test$default, tunedPredictCreditRandFor))[2,2]))/nrow(test)
-
 
